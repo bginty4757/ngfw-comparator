@@ -22,9 +22,6 @@
 //   - null = not published by vendor (never guess or interpolate)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useMemo } from "react";
-import RequirementsWizard from "./RequirementsWizard";
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA  (sourced from vendor-published datasheets; all throughput in Mbps)
 // Performance methodology notes per vendor are flagged in notes field.
