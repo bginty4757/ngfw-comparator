@@ -1,68 +1,61 @@
+/* ── CSS variable defaults (dark mode) ─────────────────────────────────────
+   JavaScript overrides these on toggle. Defining them here ensures they are
+   available before React hydrates, eliminating any flash of invisible text.
+   ───────────────────────────────────────────────────────────────────────── */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --c-bg:         #0d1117;
+  --c-surface:    #161b22;
+  --c-row2:       #111820;
+  --c-hover:      #1c2333;
+  --c-border:     #21262d;
+  --c-border2:    #30363d;
+  --c-text:       #c9d1d9;
+  --c-text2:      #8b949e;
+  --c-text3:      #6e7681;
+  --c-text4:      #484f58;
+  --c-text5:      #444c56;
+  --c-textbright: #e6edf3;
+  --c-blue:       #58a6ff;
+  --c-blue2:      #79c0ff;
+  --c-blue-bg:    #1f6feb;
+  --c-blue-a1:    #1f6feb22;
+  --c-blue-a2:    #1f6feb44;
+  --c-blue-a3:    #1f6feb88;
+  --c-anchor:     #0f1e35;
+  --c-match:      #0d160d;
+  --c-pinned:     #0d1a2e;
+  --c-pinned-hdr: #131a26;
+  --c-wiz:        #1f3a1f;
+  --c-warn:       #1a1200;
+  --c-deep:       #0f2c4a;
+  --c-pin-btn:    #1f3a5f;
+  --c-cell-border: transparent;
+}
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ── Base reset ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
 
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--c-bg);
+  color: var(--c-text);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Cell borders (visible in light mode via --c-cell-border) ───────────── */
+table td, table th {
+  border-right: 1px solid var(--c-cell-border);
+}
+
+/* ── Link defaults ──────────────────────────────────────────────────────── */
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+  color: var(--c-blue);
+  text-decoration: none;
 }
