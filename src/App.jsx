@@ -163,33 +163,79 @@ export default function FirewallComparator() {
     // Log scale is used because throughput values span orders of magnitude —
     // a 10→20 Gbps gap is proportionally far more significant than 100→110 Gbps.
     // IPS is weighted highest as it's the most directly cross-vendor comparable metric.
+    //
+    // Scoring rules (see MATCHUP TUNING below):
+    //   1. Score is always normalised over the FULL metric weight, never over the
+    //      weight that happened to be available. Dividing by "weight used" let a
+    //      model with sparse data win by omission — e.g. the only Meraki box with
+    //      no published IPsec figure beat every sibling, because its siblings were
+    //      judged on a VPN number measured on a different basis and it was not.
+    //   2. Weight with no comparable data on both sides is charged MISSING_PENALTY
+    //      rather than discarded, so thin data sheets cost a model instead of
+    //      protecting it. A model with no comparable metric at all is unscoreable
+    //      (Infinity) and is never auto-suggested — it stays pickable by hand.
+    //   3. Appliances more than one tier apart are penalised, so a desktop SMB box
+    //      is not offered against a 1U mid-market anchor on raw throughput alone.
+    //   4. FW throughput is down-weighted when the two models' test methodologies
+    //      differ (RFC 2544 vs application mix). The inflated figure is NOT rescaled
+    //      by a fudge factor — no invented numbers — it simply counts for less, and
+    //      the remaining weight is charged as missing data.
     const MATCH_METRICS = [
-      { key: "fwThroughput",                         weight: 1.0 },
+      { key: "fwThroughput",                         weight: 1.0, methodSensitive: true },
       { key: "ipsThroughput",  fallback: "threatProtection", weight: 1.5 },
       { key: "tlsInspection",                        weight: 0.75 },
       { key: "ipsecVPN",                             weight: 0.5 },
     ];
+    // ── MATCHUP TUNING ────────────────────────────────────────────────────────
+    const TOTAL_MATCH_WEIGHT = MATCH_METRICS.reduce((s, m) => s + m.weight, 0);
+    const MISSING_PENALTY  = 1.0;  // log-units charged per unit of uncomparable weight (~2.7x spec gap)
+    const TIER_PENALTY     = 0.35; // added per tier of separation from the anchor
+    const METHOD_MISMATCH  = 0.4;  // weight multiplier on FW throughput across an RFC 2544 boundary
+    // ──────────────────────────────────────────────────────────────────────────
     const logVal = (row, m) => {
       const v = row[m.key] ?? (m.fallback ? row[m.fallback] : null);
       return v != null && v > 0 ? Math.log(v) : null;
     };
     const anchorLogs = MATCH_METRICS.map((m) => logVal(anchor, m));
+    const tierIdx = (t) => {
+      const i = TIERS.findIndex((x) => x.id === t);
+      return i === -1 ? null : i;
+    };
+    const anchorTier = tierIdx(anchor.tier);
 
     return [...matchupVendors].map((vendorKey) => {
-      const competitors = APPLIANCES.filter((a) => a.vendor === vendorKey);
+      const competitors = APPLIANCES.filter((a) => a.vendor === vendorKey && a.id !== anchor.id);
       if (!competitors.length) return null;
       const scored = competitors.map((c) => {
         let totalDelta = 0;
-        let weightUsed = 0;
+        let missingWeight = 0;
+        let comparedWeight = 0;
         MATCH_METRICS.forEach((m, i) => {
           const aLog = anchorLogs[i];
           const cLog = logVal(c, m);
+          const effWeight = m.methodSensitive && !!anchor.rfc2544 !== !!c.rfc2544
+            ? m.weight * METHOD_MISMATCH
+            : m.weight;
           if (aLog != null && cLog != null) {
-            totalDelta += m.weight * Math.abs(aLog - cLog);
-            weightUsed += m.weight;
+            totalDelta    += effWeight * Math.abs(aLog - cLog);
+            missingWeight += m.weight - effWeight; // discounted share counts as missing
+            comparedWeight += m.weight;
+          } else {
+            missingWeight += m.weight;
           }
         });
-        return { ...c, _score: weightUsed > 0 ? totalDelta / weightUsed : Infinity };
+        if (comparedWeight === 0) {
+          return { ...c, _score: Infinity, _tierDist: null, _comparedWeight: 0 };
+        }
+        const cTier = tierIdx(c.tier);
+        const tierDist = anchorTier != null && cTier != null ? Math.abs(anchorTier - cTier) : 0;
+        const specScore = (totalDelta + MISSING_PENALTY * missingWeight) / TOTAL_MATCH_WEIGHT;
+        return {
+          ...c,
+          _score: specScore + TIER_PENALTY * tierDist,
+          _tierDist: tierDist,
+          _comparedWeight: comparedWeight,
+        };
       }).sort((a, b) => a._score - b._score);
 
       const bestBySpec = scored[0];
@@ -507,7 +553,7 @@ export default function FirewallComparator() {
               Performance · Specs · Competitive Intelligence
             </div>
             <div style={{ fontSize: 10, color: "var(--c-text5)", marginTop: 3, letterSpacing: "0.05em" }}>
-              {Object.keys(VENDORS).length} vendors · {APPLIANCES.length}+ models · benchmark data current as of Q3 2026
+              {Object.keys(VENDORS).length} vendors · {APPLIANCES.length} models · benchmark data current as of Q4 2026
             </div>
           </div>
         )}
@@ -796,7 +842,10 @@ NOTE: Max DPI and DPI-SSL session counts are significantly lower than SPI sessio
                             {r.scored.map((c) => {
                               const star = c.id === r.bestBySpec?.id ? " ★" : "";
                               const diamond = c.id === r.formFactorPeer?.id && c.id !== r.bestBySpec?.id ? " ◆" : "";
-                              return <option key={c.id} value={c.id}>{c.model}{star}{diamond}</option>;
+                              // Unscoreable = vendor publishes no comparable perf metric for this model,
+                              // so it is never auto-suggested. Still selectable by hand.
+                              const noSpecs = c._comparedWeight === 0 ? " — no published specs" : "";
+                              return <option key={c.id} value={c.id}>{c.model}{star}{diamond}{noSpecs}</option>;
                             })}
                           </select>
                         )}
